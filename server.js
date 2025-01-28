@@ -112,13 +112,30 @@ app.post('/api/analyze-video', upload.single('video'), async (req, res) => {
     }
 });
 
+// Helper function to convert seconds to ISO 8601 duration format (HH:mm:ss)
+function formatTime(seconds) {
+    const hours = Math.floor(seconds / 3600);
+    const minutes = Math.floor((seconds % 3600) / 60);
+    const remainingSeconds = seconds % 60;
+    
+    const parts = [];
+    if (hours > 0) {
+        parts.push(hours.toString().padStart(2, '0'));
+    }
+    parts.push(minutes.toString().padStart(2, '0'));
+    parts.push(remainingSeconds.toString().padStart(2, '0'));
+    
+    return parts.join(':');
+}
+
 function processResults(results) {
     let description = 'Timeline Analysis:\n\n';
     let timeline = [];
 
     // Get the first annotation result
     const annotations = results.annotationResults[0];
-    console.log('Processing video of length:', annotations.segment?.endTimeOffset?.seconds || 'unknown', 'seconds');
+    const totalDuration = annotations.segment?.endTimeOffset?.seconds || 0;
+    console.log('Processing video of length:', formatTime(totalDuration));
 
     console.log('Processing label annotations...');
     if (annotations.segmentLabelAnnotations) {
@@ -130,7 +147,7 @@ function processResults(results) {
                 const endTime = Math.round(segment.endTimeOffset?.seconds || 0);
                 timeline.push({
                     time: startTime,
-                    event: `${label.entity.description} detected (until ${endTime}s)`,
+                    event: `${label.entity.description} detected (until ${formatTime(endTime)})`,
                     confidence: Math.round(segment.confidence * 100)
                 });
             });
@@ -162,7 +179,7 @@ function processResults(results) {
                 const endTime = Math.round(track.segment?.endTimeOffset?.seconds || 0);
                 timeline.push({
                     time: startTime,
-                    event: `Person detected (until ${endTime}s)`,
+                    event: `Person detected (until ${formatTime(endTime)})`,
                     confidence: Math.round(track.confidence * 100)
                 });
             });
@@ -197,7 +214,7 @@ function processResults(results) {
             const endTime = Math.round(shot.endTimeOffset.seconds || 0);
             timeline.push({
                 time: startTime,
-                event: `New scene detected (until ${endTime}s)`,
+                event: `New scene detected (until ${formatTime(endTime)})`,
                 confidence: 100
             });
         });
@@ -208,7 +225,7 @@ function processResults(results) {
     console.log(`Total events detected: ${timeline.length}`);
     console.log('Timeline events:', timeline);
     timeline.forEach(event => {
-        description += `${event.time}s: ${event.event} (${event.confidence}% confidence)\n`;
+        description += `${formatTime(event.time)}: ${event.event} (${event.confidence}% confidence)\n`;
     });
 
     if (timeline.length === 0) {
