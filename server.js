@@ -21,10 +21,15 @@ const upload = multer({
 });
 
 // Initialize the Video Intelligence client with explicit credentials
+console.log('Initializing Video Intelligence client...');
 const client = new VideoIntelligenceServiceClient({
     keyFilename: './credentials.json',
     projectId: 'tester-449003'
 });
+
+// Verify client initialization
+console.log('Client initialized with project:', client.projectId);
+console.log('Using credentials from:', path.resolve('./credentials.json'));
 
 // Health check endpoint
 app.get('/health', (req, res) => {
@@ -38,41 +43,71 @@ app.post('/api/analyze-video', upload.single('video'), async (req, res) => {
         }
 
         console.log('Processing video analysis request...');
-        
+        console.log('Video file size:', req.file.size, 'bytes');
+        console.log('Video mime type:', req.file.mimetype);
+
         const videoBuffer = req.file.buffer;
         const videoContent = videoBuffer.toString('base64');
 
+        // Verify we have video content
+        if (!videoContent) {
+            throw new Error('Video content is empty');
+        }
+        console.log('Video content length:', videoContent.length, 'characters');
+
+        // Add more features for comprehensive analysis
         const request = {
             inputContent: videoContent,
             features: [
                 'LABEL_DETECTION',
-                'SHOT_CHANGE_DETECTION',
                 'OBJECT_TRACKING',
-                'EXPLICIT_CONTENT_DETECTION'
+                'SHOT_CHANGE_DETECTION'
             ],
             videoContext: {
                 segments: [{
                     startTimeOffset: { seconds: '0' },
-                    endTimeOffset: { seconds: '300' } // analyze up to 5 minutes
+                    endTimeOffset: { seconds: '60' }  // analyze up to 1 minute
                 }]
             }
         };
 
         console.log('Sending request to Google Cloud...');
-        const [operation] = await client.annotateVideo(request);
-        console.log('Waiting for analysis to complete...');
-        const [results] = await operation.promise();
+        console.log('API Endpoint:', client.apiEndpoint);
+        console.log('Project ID:', client.projectId);
 
-        // Process and format the results
-        const analysis = processResults(results);
-        console.log('Analysis complete');
+        try {
+            console.log('Initiating video analysis...');
+            const [operation] = await client.annotateVideo(request);
+            console.log('Operation ID:', operation.name);
+            console.log('Waiting for operation to complete...');
 
-        res.json(analysis);
+            const [results] = await operation.promise();
+            console.log('Analysis completed. Results structure:', Object.keys(results));
+            if (results.annotationResults) {
+                console.log('Annotation types received:', 
+                    Object.keys(results.annotationResults[0] || {})
+                );
+            }
+
+            if (!results || !results.annotationResults || results.annotationResults.length === 0) {
+                throw new Error('Invalid response from Video Intelligence API');
+            }
+
+            // Process and format the results
+            const analysis = processResults(results);
+            console.log('Analysis complete');
+
+            res.json(analysis);
+        } catch (error) {
+            console.error('Error processing video:', error);
+            throw error;
+        }
     } catch (error) {
         console.error('Error during video analysis:', error);
         res.status(500).json({ 
             error: 'Analysis failed',
-            details: error.message 
+            details: error.message,
+            stack: error.stack
         });
     }
 });
@@ -81,22 +116,32 @@ function processResults(results) {
     let description = 'Timeline Analysis:\n\n';
     let timeline = [];
 
-    if (results.labelAnnotations) {
-        results.labelAnnotations.forEach(label => {
+    // Get the first annotation result
+    const annotations = results.annotationResults[0];
+    console.log('Processing video of length:', annotations.segment?.endTimeOffset?.seconds || 'unknown', 'seconds');
+
+    console.log('Processing label annotations...');
+    if (annotations.segmentLabelAnnotations) {
+        console.log(`Found ${annotations.segmentLabelAnnotations.length} labels`);
+        annotations.segmentLabelAnnotations.forEach(label => {
+            console.log(`Processing label: ${label.entity.description}`);
             label.segments.forEach(segment => {
                 const startTime = Math.round(segment.startTimeOffset?.seconds || 0);
                 const endTime = Math.round(segment.endTimeOffset?.seconds || 0);
                 timeline.push({
                     time: startTime,
-                    event: `${label.entity.description} detected`,
+                    event: `${label.entity.description} detected (until ${endTime}s)`,
                     confidence: Math.round(segment.confidence * 100)
                 });
             });
         });
     }
 
-    if (results.objectAnnotations) {
-        results.objectAnnotations.forEach(obj => {
+    console.log('Processing object annotations...');
+    if (annotations.objectAnnotations) {
+        console.log('Processing object: OBJECT_TRACKING');
+        annotations.objectAnnotations.forEach(obj => {
+            console.log(`Processing object: ${obj.entity.description}`);
             obj.frames.forEach(frame => {
                 const timeOffset = Math.round(frame.timeOffset?.seconds || 0);
                 timeline.push({
@@ -108,12 +153,51 @@ function processResults(results) {
         });
     }
 
-    if (results.shotAnnotations) {
-        results.shotAnnotations.forEach((shot, index) => {
+    // Process person detection annotations
+    if (annotations.personDetectionAnnotations) {
+        console.log('Processing person detections...');
+        annotations.personDetectionAnnotations.forEach(person => {
+            person.tracks.forEach(track => {
+                const startTime = Math.round(track.segment?.startTimeOffset?.seconds || 0);
+                const endTime = Math.round(track.segment?.endTimeOffset?.seconds || 0);
+                timeline.push({
+                    time: startTime,
+                    event: `Person detected (until ${endTime}s)`,
+                    confidence: Math.round(track.confidence * 100)
+                });
+            });
+        });
+    }
+
+    // Process speech transcriptions
+    if (annotations.speechTranscriptions) {
+        console.log('Processing speech transcriptions...');
+        annotations.speechTranscriptions.forEach(transcription => {
+            console.log(`Processing speech: "${transcription.alternatives[0].transcript}"`);
+            transcription.alternatives.forEach(alternative => {
+                if (alternative.words) {
+                    console.log(`Processing word: "${alternative.words[0].wordInfo.word}"`);
+                    alternative.words.forEach(wordInfo => {
+                        const startTime = Math.round(wordInfo.startTime?.seconds || 0);
+                        timeline.push({
+                            time: startTime,
+                            event: `Speech: "${alternative.transcript}"`,
+                            confidence: Math.round(alternative.confidence * 100)
+                        });
+                    });
+                }
+            });
+        });
+    }
+
+    if (annotations.shotAnnotations) {
+        console.log('Processing shot changes...');
+        annotations.shotAnnotations.forEach((shot, index) => {
             const startTime = Math.round(shot.startTimeOffset.seconds || 0);
+            const endTime = Math.round(shot.endTimeOffset.seconds || 0);
             timeline.push({
                 time: startTime,
-                event: `New scene detected`,
+                event: `New scene detected (until ${endTime}s)`,
                 confidence: 100
             });
         });
@@ -121,17 +205,23 @@ function processResults(results) {
 
     timeline.sort((a, b) => a.time - b.time);
     
+    console.log(`Total events detected: ${timeline.length}`);
+    console.log('Timeline events:', timeline);
     timeline.forEach(event => {
         description += `${event.time}s: ${event.event} (${event.confidence}% confidence)\n`;
     });
 
     if (timeline.length === 0) {
-        description += "No significant events detected in the video.\n";
+        console.log('Warning: No events detected in the video');
+        description += "No significant events detected in the video.\nThis might be due to:\n" +
+                      "- Video quality or length issues\n" +
+                      "- Content not matching expected patterns\n" +
+                      "- Processing limitations\n";
     }
 
     return {
         analysis: description,
-        confidence: calculateOverallConfidence(results.labelAnnotations || [])
+        confidence: calculateOverallConfidence(annotations.segmentLabelAnnotations || [])
     };
 }
 

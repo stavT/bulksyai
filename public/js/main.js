@@ -6,7 +6,6 @@ class VideoAnalyzer {
         this.runButton = document.getElementById('runAnalysis');
         this.progressBar = document.getElementById('progressBar');
         this.results = document.getElementById('results');
-        this.queryInput = document.getElementById('queryInput');
         this.currentFile = null;
 
         this.initializeEventListeners();
@@ -60,8 +59,25 @@ class VideoAnalyzer {
     }
 
     handleFileSelection(file) {
+        // Verify file size and type
+        const maxSize = 50 * 1024 * 1024; // 50MB
+        if (file.size > maxSize) {
+            alert('File is too large. Please upload a video smaller than 50MB.');
+            return;
+        }
+
+        if (!file.type.startsWith('video/')) {
+            alert('Please upload a valid video file.');
+            return;
+        }
+
         this.currentFile = file;
-        alert('Video uploaded successfully! Click "Run Analysis" when ready.');
+        console.log('Selected file:', {
+            name: file.name,
+            size: file.size,
+            type: file.type
+        });
+        alert(`Video "${file.name}" selected! Click "Run Analysis" when ready.`);
     }
 
     async analyzeVideo(file) {
@@ -69,11 +85,11 @@ class VideoAnalyzer {
             // Show progress bar
             this.progressBar.hidden = false;
             this.results.hidden = true;
+            this.updateProgress(50); // Show indefinite progress
 
             // Create FormData
             const formData = new FormData();
             formData.append('video', file);
-            formData.append('query', this.queryInput.value);
 
             // Upload and analyze video
             const response = await fetch('http://localhost:3000/api/analyze-video', {
@@ -82,15 +98,17 @@ class VideoAnalyzer {
             });
 
             if (!response.ok) {
-                throw new Error('Analysis failed');
+                const errorData = await response.json();
+                throw new Error(errorData.details || 'Analysis failed');
             }
 
             const data = await response.json();
+            this.updateProgress(100);
             this.displayResults(data);
 
         } catch (error) {
             console.error('Error:', error);
-            alert('An error occurred during analysis');
+            alert('An error occurred during analysis. Please try again.');
         } finally {
             this.progressBar.hidden = true;
         }
@@ -109,6 +127,11 @@ class VideoAnalyzer {
                 Overall Confidence: ${data.confidence}%
             </div>
         `;
+    }
+
+    updateProgress(percent) {
+        const progressElement = this.progressBar.querySelector('.progress');
+        progressElement.style.width = `${percent}%`;
     }
 }
 
