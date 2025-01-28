@@ -72,12 +72,19 @@ class VideoAnalyzer {
         }
 
         this.currentFile = file;
+        
+        // Update UI to show selected file
+        const dropZone = document.getElementById('dropZone');
+        const fileName = document.getElementById('fileName');
+        
+        dropZone.classList.add('has-file');
+        fileName.textContent = file.name;
+        
         console.log('Selected file:', {
             name: file.name,
             size: file.size,
             type: file.type
         });
-        alert(`Video "${file.name}" selected! Click "Run Analysis" when ready.`);
     }
 
     async analyzeVideo(file) {
@@ -85,7 +92,11 @@ class VideoAnalyzer {
             // Show progress bar
             this.progressBar.hidden = false;
             this.results.hidden = true;
-            this.updateProgress(50); // Show indefinite progress
+            this.updateProgress(50);
+
+            // Add loading state to upload area
+            const dropZone = document.getElementById('dropZone');
+            dropZone.style.opacity = '0.7';
 
             // Create FormData
             const formData = new FormData();
@@ -111,6 +122,9 @@ class VideoAnalyzer {
             alert('An error occurred during analysis. Please try again.');
         } finally {
             this.progressBar.hidden = true;
+            // Restore upload area opacity
+            const dropZone = document.getElementById('dropZone');
+            dropZone.style.opacity = '1';
         }
     }
 

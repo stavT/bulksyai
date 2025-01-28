@@ -49,6 +49,11 @@ header p {
     cursor: pointer;
 }
 
+.upload-area.has-file {
+    border-color: #2ecc71;
+    background: #f7fefa;
+}
+
 .upload-area:hover {
     border-color: #3498db;
 }
@@ -56,11 +61,42 @@ header p {
 .upload-area img {
     width: 64px;
     margin-bottom: 1rem;
+    transition: transform 0.3s ease;
+}
+
+.upload-area.has-file img {
+    transform: scale(0.8);
 }
 
 .upload-area p {
     margin-bottom: 1rem;
     color: #7f8c8d;
+}
+
+.file-name {
+    display: none;
+    margin-top: 1rem;
+    padding: 0.5rem 1rem;
+    background: #2ecc71;
+    color: white;
+    border-radius: 20px;
+    font-size: 0.9rem;
+    animation: slideIn 0.3s ease;
+}
+
+.upload-area.has-file .file-name {
+    display: inline-block;
+}
+
+@keyframes slideIn {
+    from {
+        transform: translateY(-10px);
+        opacity: 0;
+    }
+    to {
+        transform: translateY(0);
+        opacity: 1;
+    }
 }
 
 button {
