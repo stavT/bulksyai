@@ -95,6 +95,24 @@ button:hover {
     font-size: 1rem;
 }
 
+.run-button {
+    display: block;
+    width: 100%;
+    margin-top: 1rem;
+    padding: 1rem;
+    background: #2ecc71;
+    color: white;
+    border: none;
+    border-radius: 5px;
+    font-size: 1.1rem;
+    cursor: pointer;
+    transition: background 0.3s ease;
+}
+
+.run-button:hover {
+    background: #27ae60;
+}
+
 .progress-bar {
     background: #eee;
     height: 10px;
@@ -125,6 +143,25 @@ button:hover {
     background: #f8f9fa;
     padding: 1rem;
     border-radius: 5px;
+}
+
+.chat-box {
+    background: #fff;
+    border: 1px solid #e1e1e1;
+    border-radius: 10px;
+    padding: 1.5rem;
+    margin: 1rem 0;
+    max-height: 400px;
+    overflow-y: auto;
+    font-family: monospace;
+    white-space: pre-wrap;
+    line-height: 1.4;
+}
+
+.chat-box pre {
+    margin: 0;
+    font-size: 14px;
+    color: #2c3e50;
 }
 
 .drag-over {

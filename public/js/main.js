@@ -3,14 +3,25 @@ class VideoAnalyzer {
         this.dropZone = document.getElementById('dropZone');
         this.fileInput = document.getElementById('fileInput');
         this.uploadButton = document.getElementById('uploadButton');
+        this.runButton = document.getElementById('runAnalysis');
         this.progressBar = document.getElementById('progressBar');
         this.results = document.getElementById('results');
         this.queryInput = document.getElementById('queryInput');
+        this.currentFile = null;
 
         this.initializeEventListeners();
     }
 
     initializeEventListeners() {
+        // Handle Run Analysis button
+        this.runButton.addEventListener('click', () => {
+            if (this.currentFile) {
+                this.analyzeVideo(this.currentFile);
+            } else {
+                alert('Please upload a video first');
+            }
+        });
+
         // Handle drag and drop
         this.dropZone.addEventListener('dragover', (e) => {
             e.preventDefault();
@@ -26,7 +37,7 @@ class VideoAnalyzer {
             this.dropZone.classList.remove('drag-over');
             const file = e.dataTransfer.files[0];
             if (file && file.type === 'video/mp4') {
-                this.handleFileUpload(file);
+                this.handleFileSelection(file);
             } else {
                 alert('Please upload an MP4 file');
             }
@@ -41,14 +52,19 @@ class VideoAnalyzer {
         this.fileInput.addEventListener('change', (e) => {
             const file = e.target.files[0];
             if (file && file.type === 'video/mp4') {
-                this.handleFileUpload(file);
+                this.handleFileSelection(file);
             } else {
                 alert('Please upload an MP4 file');
             }
         });
     }
 
-    async handleFileUpload(file) {
+    handleFileSelection(file) {
+        this.currentFile = file;
+        alert('Video uploaded successfully! Click "Run Analysis" when ready.');
+    }
+
+    async analyzeVideo(file) {
         try {
             // Show progress bar
             this.progressBar.hidden = false;
@@ -84,21 +100,14 @@ class VideoAnalyzer {
         this.results.hidden = false;
         const resultsContent = this.results.querySelector('.results-content');
         
-        let labelsHtml = '';
-        if (data.labels && data.labels.length > 0) {
-            labelsHtml = '<h3>Detected Labels:</h3><ul>' +
-                data.labels.map(label => 
-                    `<li>${label.description} (${label.confidence}% confidence)</li>`
-                ).join('') + '</ul>';
-        }
-
         resultsContent.innerHTML = `
             <h3>Analysis Results</h3>
-            <p>${data.analysis}</p>
+            <div class="chat-box">
+                <pre>${data.analysis}</pre>
+            </div>
             <div class="confidence-score">
                 Overall Confidence: ${data.confidence}%
             </div>
-            ${labelsHtml}
         `;
     }
 }

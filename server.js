@@ -2,7 +2,7 @@ const express = require('express');
 const multer = require('multer');
 const cors = require('cors');
 const path = require('path');
-const {VideoIntelligenceServiceClient} = require('@google-cloud/video-intelligence');
+const { VideoIntelligenceServiceClient } = require('@google-cloud/video-intelligence');
 
 const app = express();
 
@@ -20,6 +20,12 @@ const upload = multer({
     }
 });
 
+// Initialize the Video Intelligence client with explicit credentials
+const client = new VideoIntelligenceServiceClient({
+    keyFilename: './credentials.json',
+    projectId: 'tester-449003'
+});
+
 // Health check endpoint
 app.get('/health', (req, res) => {
     res.json({ status: 'ok' });
@@ -31,19 +37,25 @@ app.post('/api/analyze-video', upload.single('video'), async (req, res) => {
             return res.status(400).json({ error: 'No video file uploaded' });
         }
 
-        const client = new VideoIntelligenceServiceClient();
-        
-        const videoBuffer = req.file.buffer;
-        const query = req.body.query || 'Did the drone fail?';
-
         console.log('Processing video analysis request...');
         
-        // Convert video to base64
+        const videoBuffer = req.file.buffer;
         const videoContent = videoBuffer.toString('base64');
 
         const request = {
             inputContent: videoContent,
-            features: ['LABEL_DETECTION', 'OBJECT_TRACKING'],
+            features: [
+                'LABEL_DETECTION',
+                'SHOT_CHANGE_DETECTION',
+                'OBJECT_TRACKING',
+                'EXPLICIT_CONTENT_DETECTION'
+            ],
+            videoContext: {
+                segments: [{
+                    startTimeOffset: { seconds: '0' },
+                    endTimeOffset: { seconds: '300' } // analyze up to 5 minutes
+                }]
+            }
         };
 
         console.log('Sending request to Google Cloud...');
@@ -51,7 +63,8 @@ app.post('/api/analyze-video', upload.single('video'), async (req, res) => {
         console.log('Waiting for analysis to complete...');
         const [results] = await operation.promise();
 
-        const analysis = processResults(results, query);
+        // Process and format the results
+        const analysis = processResults(results);
         console.log('Analysis complete');
 
         res.json(analysis);
@@ -64,23 +77,68 @@ app.post('/api/analyze-video', upload.single('video'), async (req, res) => {
     }
 });
 
-function processResults(results, query) {
-    // Basic example of processing results
-    const labels = results.labelAnnotations || [];
-    const relevantLabels = labels.filter(label => 
-        label.confidence > 0.7
-    ).map(label => ({
-        description: label.description,
-        confidence: Math.round(label.confidence * 100)
-    }));
+function processResults(results) {
+    let description = 'Timeline Analysis:\n\n';
+    let timeline = [];
+
+    if (results.labelAnnotations) {
+        results.labelAnnotations.forEach(label => {
+            label.segments.forEach(segment => {
+                const startTime = Math.round(segment.startTimeOffset?.seconds || 0);
+                const endTime = Math.round(segment.endTimeOffset?.seconds || 0);
+                timeline.push({
+                    time: startTime,
+                    event: `${label.entity.description} detected`,
+                    confidence: Math.round(segment.confidence * 100)
+                });
+            });
+        });
+    }
+
+    if (results.objectAnnotations) {
+        results.objectAnnotations.forEach(obj => {
+            obj.frames.forEach(frame => {
+                const timeOffset = Math.round(frame.timeOffset?.seconds || 0);
+                timeline.push({
+                    time: timeOffset,
+                    event: `${obj.entity.description} tracked`,
+                    confidence: Math.round(frame.confidence * 100)
+                });
+            });
+        });
+    }
+
+    if (results.shotAnnotations) {
+        results.shotAnnotations.forEach((shot, index) => {
+            const startTime = Math.round(shot.startTimeOffset.seconds || 0);
+            timeline.push({
+                time: startTime,
+                event: `New scene detected`,
+                confidence: 100
+            });
+        });
+    }
+
+    timeline.sort((a, b) => a.time - b.time);
+    
+    timeline.forEach(event => {
+        description += `${event.time}s: ${event.event} (${event.confidence}% confidence)\n`;
+    });
+
+    if (timeline.length === 0) {
+        description += "No significant events detected in the video.\n";
+    }
 
     return {
-        analysis: `Detected ${relevantLabels.length} relevant objects/actions`,
-        labels: relevantLabels,
-        confidence: relevantLabels.length > 0 
-            ? Math.round(relevantLabels.reduce((acc, label) => acc + label.confidence, 0) / relevantLabels.length)
-            : 0
+        analysis: description,
+        confidence: calculateOverallConfidence(results.labelAnnotations || [])
     };
+}
+
+function calculateOverallConfidence(labels) {
+    if (labels.length === 0) return 0;
+    const sum = labels.reduce((acc, label) => acc + (label.segments[0].confidence || 0), 0);
+    return Math.round((sum / labels.length) * 100);
 }
 
 const PORT = process.env.PORT || 3000;
