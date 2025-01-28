@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Drone Video Analysis</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Drone Video Analysis</h1>
+            <p>Upload your drone footage for instant failure analysis</p>
+        </header>
+
+        <main>
+            <div class="upload-container">
+                <div class="upload-area" id="dropZone">
+                    <img src="upload-icon.svg" alt="Upload" id="uploadIcon">
+                    <p>Drag and drop your video here or</p>
+                    <input type="file" id="fileInput" accept="video/mp4" hidden>
+                    <button id="uploadButton">Choose File</button>
+                </div>
+                
+                <div class="analysis-query">
+                    <label for="queryInput">What would you like to analyze?</label>
+                    <input type="text" id="queryInput" 
+                           placeholder="e.g., Did the drone fail?"
+                           value="Did the drone fail?">
+                </div>
+
+                <div class="progress-bar" id="progressBar" hidden>
+                    <div class="progress"></div>
+                </div>
+
+                <div class="results" id="results" hidden>
+                    <h2>Analysis Results</h2>
+                    <div class="results-content"></div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script src="js/main.js"></script>
+</body>
+</html> 
